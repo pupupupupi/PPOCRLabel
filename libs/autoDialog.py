@@ -32,59 +32,55 @@ class Worker(QThread):
         self.setStackSize(1024 * 1024)
 
     def run(self):
-        try:
-            findex = 0
-            for Imgpath in self.mImgList:
-                if self.handle == 0:
-                    self.listValue.emit(Imgpath)
-                    if self.model == "paddle":
-                        h, w, _ = cv2.imdecode(
-                            np.fromfile(Imgpath, dtype=np.uint8), 1
-                        ).shape
+        findex = 0
+        for Imgpath in self.mImgList:
+            if self.handle == 0:
+                self.listValue.emit(Imgpath)
+                if self.model == "paddle":
+                    try:
+                        img_data = np.fromfile(Imgpath, dtype=np.uint8)
+                        img = cv2.imdecode(img_data, 1)
+                        if img is None:
+                            raise ValueError(f"Failed to decode image: {Imgpath}")
+                        h, w, _ = img.shape
                         if h > 32 and w > 32:
-                            self.result_dic = self.ocr.ocr(Imgpath, cls=True, det=True)[
-                                0
-                            ]
+                            self.result_dic = self.ocr.ocr(Imgpath, cls=True, det=True)[0]
                         else:
-                            print(
-                                "The size of", Imgpath, "is too small to be recognised"
-                            )
+                            print(f"The size of {Imgpath} is too small to be recognised")
                             self.result_dic = None
+                    except Exception as e:
+                        print(f"Error processing {Imgpath}: {str(e)}")
+                        self.result_dic = None
 
-                    # 结果保存
-                    if self.result_dic is None or len(self.result_dic) == 0:
-                        print("Can not recognise file", Imgpath)
-                        pass
-                    else:
+                # 结果保存
+                if self.result_dic is None or len(self.result_dic) == 0:
+                    print(f"Can not recognise file {Imgpath}")
+                else:
+                    try:
                         strs = ""
                         for res in self.result_dic:
                             chars = res[1][0]
                             cond = res[1][1]
                             posi = res[0]
                             strs += (
-                                "Transcription: "
-                                + chars
-                                + " Probability: "
-                                + str(cond)
-                                + " Location: "
-                                + json.dumps(posi)
-                                + "\n"
+                                f"Transcription: {chars} "
+                                f"Probability: {str(cond)} "
+                                f"Location: {json.dumps(posi)}\n"
                             )
-                        # Sending large amounts of data repeatedly through pyqtSignal may affect the program efficiency
                         self.listValue.emit(strs)
                         self.mainThread.result_dic = self.result_dic
                         self.mainThread.filePath = Imgpath
                         # 保存
                         self.mainThread.saveFile(mode="Auto")
-                    findex += 1
-                    self.progressBarValue.emit(findex)
-                else:
-                    break
-            self.endsignal.emit(0, "readAll")
-            self.exec()
-        except Exception as e:
-            print(e)
-            raise
+                    except Exception as e:
+                        print(f"Error processing results for {Imgpath}: {str(e)}")
+
+                findex += 1
+                self.progressBarValue.emit(findex)
+            else:
+                break
+        self.endsignal.emit(0, "readAll")
+        self.exec()
 
 
 class AutoDialog(QDialog):
