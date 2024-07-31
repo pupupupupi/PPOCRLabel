@@ -37,7 +37,11 @@ def splitTrainVal(
         label_record_len = len(label_file_content)
 
         for index, label_record_info in enumerate(label_file_content):
-            image_relative_path, image_label = label_record_info.split("\t")
+            try:
+                image_relative_path, image_label = label_record_info.split("\t")
+            except ValueError:
+                print(f"Skipping invalid line {index + 1}: {label_record_info}")
+                continue
             image_name = os.path.basename(image_relative_path)
 
             if flag == "det":
